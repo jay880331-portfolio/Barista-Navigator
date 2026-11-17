@@ -1,0 +1,917 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: 바리스타 커뮤니티 앱 API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: users
+    description: User operations
+  - name: baristas
+    description: Barista operations
+  - name: posts
+    description: Community post operations
+  - name: recipes
+    description: Recipe operations
+  - name: market
+    description: Market operations
+  - name: sponsors
+    description: Sponsor operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: registerUser
+      tags: [auth]
+      summary: 이메일 회원가입
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: 회원가입 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: 잘못된 요청
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      summary: 이메일 로그인
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/social:
+    post:
+      operationId: socialLogin
+      tags: [auth]
+      summary: 소셜 로그인 (카카오/네이버)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SocialLoginRequest"
+      responses:
+        "200":
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "201":
+          description: 회원가입 후 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /auth/verify-phone:
+    post:
+      operationId: sendPhoneVerification
+      tags: [auth]
+      summary: 전화번호 인증 코드 발송
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhoneVerificationRequest"
+      responses:
+        "200":
+          description: 인증 코드 발송 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/verify-phone/confirm:
+    post:
+      operationId: confirmPhoneVerification
+      tags: [auth]
+      summary: 전화번호 인증 코드 확인
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhoneVerificationConfirmRequest"
+      responses:
+        "200":
+          description: 인증 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhoneVerificationConfirmResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: 현재 사용자 정보
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 사용자 정보
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /auth/kakao:
+    get:
+      operationId: kakaoAuth
+      tags: [auth]
+      summary: 카카오 OAuth 인증 시작
+      description: 카카오 계정 로그인 페이지로 리다이렉트합니다.
+      responses:
+        "302":
+          description: 카카오 인증 페이지로 리다이렉트
+
+  /auth/kakao/callback:
+    get:
+      operationId: kakaoCallback
+      tags: [auth]
+      summary: 카카오 OAuth 콜백 처리
+      description: 카카오 인증 후 콜백을 처리하여 JWT를 발급하거나 소셜 회원가입 페이지로 리다이렉트합니다.
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 카카오에서 발급한 인증 코드
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+          description: CSRF 방지용 state 파라미터
+        - name: error
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 카카오 인증 오류 시 에러 코드
+        - name: error_description
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 카카오 인증 오류 시 에러 설명
+      responses:
+        "302":
+          description: 로그인 성공 시 메인 페이지로 리다이렉트 (token 쿼리 파라미터 포함) 또는 신규 사용자는 소셜 회원가입 페이지로 리다이렉트
+          headers:
+            Location:
+              schema:
+                type: string
+              description: 리다이렉트 URL
+        "400":
+          description: 잘못된 요청 또는 카카오 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /baristas:
+    get:
+      operationId: getBaristas
+      tags: [baristas]
+      summary: 바리스타 목록 (지도용)
+      parameters:
+        - name: lat
+          in: query
+          schema:
+            type: number
+        - name: lng
+          in: query
+          schema:
+            type: number
+        - name: radius
+          in: query
+          schema:
+            type: number
+            default: 1.0
+        - name: skill
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 바리스타 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Barista"
+
+  /baristas/{id}:
+    get:
+      operationId: getBaristaById
+      tags: [baristas]
+      summary: 바리스타 프로필
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 바리스타 프로필
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Barista"
+
+  /posts:
+    get:
+      operationId: getPosts
+      tags: [posts]
+      summary: 커뮤니티 게시글 목록
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [daily, recipe, knowhow, instagram]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: 게시글 목록
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostListResponse"
+    post:
+      operationId: createPost
+      tags: [posts]
+      summary: 게시글 작성
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePostRequest"
+      responses:
+        "201":
+          description: 게시글 작성 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /posts/{id}:
+    get:
+      operationId: getPostById
+      tags: [posts]
+      summary: 게시글 상세
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 게시글 상세
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /posts/{id}/like:
+    post:
+      operationId: likePost
+      tags: [posts]
+      summary: 게시글 좋아요
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 좋아요 처리 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /recipes:
+    get:
+      operationId: getRecipes
+      tags: [recipes]
+      summary: 레시피 목록
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        "200":
+          description: 레시피 목록
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeListResponse"
+
+  /recipes/{id}:
+    get:
+      operationId: getRecipeById
+      tags: [recipes]
+      summary: 레시피 상세
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 레시피 상세
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Recipe"
+
+  /recipes/{id}/scrap:
+    post:
+      operationId: scrapRecipe
+      tags: [recipes]
+      summary: 레시피 스크랩
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 스크랩 처리 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /market/items:
+    get:
+      operationId: getMarketItems
+      tags: [market]
+      summary: 마켓 아이템 목록
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        "200":
+          description: 마켓 아이템 목록
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketItemListResponse"
+
+  /sponsors:
+    get:
+      operationId: getSponsors
+      tags: [sponsors]
+      summary: 스폰서 목록
+      responses:
+        "200":
+          description: 스폰서 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sponsor"
+
+  /users/profile:
+    put:
+      operationId: updateProfile
+      tags: [users]
+      summary: 프로필 수정
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: 프로필 수정 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /users/scraps:
+    get:
+      operationId: getUserScraps
+      tags: [users]
+      summary: 스크랩한 레시피 목록
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 스크랩 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Recipe"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        code:
+          type: string
+      required:
+        - message
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        success:
+          type: boolean
+      required:
+        - message
+        - success
+
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        phoneVerificationToken:
+          type: string
+        role:
+          type: string
+          enum: [barista, coffee_lover]
+      required:
+        - email
+        - password
+        - name
+        - phone
+        - phoneVerificationToken
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    SocialLoginRequest:
+      type: object
+      properties:
+        provider:
+          type: string
+          enum: [kakao, naver]
+        accessToken:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        profileImage:
+          type: string
+      required:
+        - provider
+        - accessToken
+
+    PhoneVerificationRequest:
+      type: object
+      properties:
+        phone:
+          type: string
+      required:
+        - phone
+
+    PhoneVerificationConfirmRequest:
+      type: object
+      properties:
+        phone:
+          type: string
+        code:
+          type: string
+      required:
+        - phone
+        - code
+
+    PhoneVerificationConfirmResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        verificationToken:
+          type: string
+      required:
+        - success
+        - verificationToken
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/UserProfile"
+      required:
+        - token
+        - user
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        profileImage:
+          type: string
+        role:
+          type: string
+          enum: [barista, coffee_lover]
+        provider:
+          type: string
+          enum: [email, kakao, naver]
+        isActive:
+          type: boolean
+        skills:
+          type: array
+          items:
+            type: string
+        bio:
+          type: string
+        location:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - role
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        bio:
+          type: string
+        profileImage:
+          type: string
+        skills:
+          type: array
+          items:
+            type: string
+        location:
+          type: string
+        isActive:
+          type: boolean
+
+    Barista:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        profileImage:
+          type: string
+        bio:
+          type: string
+        skills:
+          type: array
+          items:
+            type: string
+        location:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        isActive:
+          type: boolean
+        rating:
+          type: number
+        reviewCount:
+          type: integer
+      required:
+        - id
+        - name
+
+    Post:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [daily, recipe, knowhow, instagram]
+        title:
+          type: string
+        content:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+        author:
+          $ref: "#/components/schemas/UserProfile"
+        likeCount:
+          type: integer
+        commentCount:
+          type: integer
+        isLiked:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - type
+        - content
+        - author
+        - createdAt
+
+    PostListResponse:
+      type: object
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Post"
+        total:
+          type: integer
+        page:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - posts
+        - total
+        - page
+        - totalPages
+
+    CreatePostRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [daily, recipe, knowhow, instagram]
+        title:
+          type: string
+        content:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+      required:
+        - type
+        - content
+
+    Recipe:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        ingredients:
+          type: array
+          items:
+            type: string
+        steps:
+          type: array
+          items:
+            type: string
+        images:
+          type: array
+          items:
+            type: string
+        author:
+          $ref: "#/components/schemas/UserProfile"
+        category:
+          type: string
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+        scrapCount:
+          type: integer
+        isScrapped:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - title
+        - author
+        - createdAt
+
+    RecipeListResponse:
+      type: object
+      properties:
+        recipes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Recipe"
+        total:
+          type: integer
+        page:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - recipes
+        - total
+        - page
+        - totalPages
+
+    MarketItem:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        price:
+          type: integer
+        category:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+        seller:
+          $ref: "#/components/schemas/UserProfile"
+        isSold:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - title
+        - price
+        - seller
+        - createdAt
+
+    MarketItemListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MarketItem"
+        total:
+          type: integer
+        page:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - items
+        - total
+        - page
+        - totalPages
+
+    Sponsor:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        logo:
+          type: string
+        bannerImage:
+          type: string
+        description:
+          type: string
+        website:
+          type: string
+        isMonthly:
+          type: boolean
+      required:
+        - id
+        - name
